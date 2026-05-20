@@ -1,0 +1,17 @@
+{
+  "name": "SPARK Course (Alire + GNAT + GNATprove)",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "workspaceMount": "type=bind,source=${localWorkspaceFolder},target=/workspaces/${localWorkspaceFolderBasename},consistency=cached",
+  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}"
+  "remoteUser": "vscode",
+  "customizations": {
+    "vscode": {
+      "extensions": ["AdaCore.ada"],
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash"
+      }
+    }
+  }
+}
