@@ -151,16 +151,50 @@ procedure Main with SPARK_Mode is
         (Initial_Radii (I) + Initial_Radii (J))) with
       Pre => I in 1 .. 2 and J in 1 .. 2;
 
-   function No_Future_Collision_Pair (U : Univ.Universe) return Boolean is
+   function No_Future_Collision_Pair (I, J : Integer) return Boolean is
      (not Collision_Math.Will_Collide_Vec
-        (Vector.Sub (Spatial.To_Vector (Univ.Get_Position (U, 1)),
-                     Spatial.To_Vector (Univ.Get_Position (U, 2))),
-         Vector.Sub (Spatial.Vel_To_Vector (Univ.Get_Velocity (U, 1)),
-                     Spatial.Vel_To_Vector (Univ.Get_Velocity (U, 2))),
-         Pair_Sep2 (1, 2)))
-   with Pre => Univ.Item_Count (U) = 2;
+        (Vector.Sub (Spatial.To_Vector (Initial_Positions (I)),
+                     Spatial.To_Vector (Initial_Positions (J))),
+         Vector.Sub (Spatial.Vel_To_Vector (Initial_Velocities (I)),
+                     Spatial.Vel_To_Vector (Initial_Velocities (J))),
+         Pair_Sep2 (I, J)))
+   with Pre => I in 1 .. 2 and then J in 1 .. 2;
 
-   --  TODO: define Lemma_No_Collision_Pair
+   procedure Lemma_No_Collision_Pair
+     (U : Univ.Universe; I, J : Integer)
+   with
+     Ghost,
+     Pre =>
+       Position_Invariant (U)
+       and then I in 1 .. 2
+       and then J in 1 .. 2
+       and then Tick_Count >= To_Big_Real (0)
+       and then No_Future_Collision_Pair (I, J),
+     Post => Squared_Dist (U, I, J) > Pair_Sep2 (I, J);
+
+   procedure Lemma_No_Collision_Pair
+     (U : Univ.Universe; I, J : Integer)
+   is
+      S : constant Vector.Vector :=
+        Vector.Sub (Spatial.To_Vector (Initial_Positions (I)),
+                    Spatial.To_Vector (Initial_Positions (J)));
+      V : constant Vector.Vector :=
+        Vector.Sub (Spatial.Vel_To_Vector (Initial_Velocities (I)),
+                    Spatial.Vel_To_Vector (Initial_Velocities (J)));
+      Eps2 : constant Big_Real := Pair_Sep2 (I, J);
+   begin
+      -- Check_Implies_Safe_Vec(S, V, Eps2, T)
+      Collision_Math.Check_Implies_Safe_Vec (S, V, Eps2, Tick_Count);
+      -- Lemma_Sq_Dist_Bridge(P1, P2, Init1, Init2, Vel1, Vel2, T)
+      Collision_Math.Lemma_Sq_Dist_Bridge
+        (Spatial.To_Vector (Univ.Get_Position (U, I)),
+         Spatial.To_Vector (Univ.Get_Position (U, J)),
+         Spatial.To_Vector (Initial_Positions (I)),
+         Spatial.To_Vector (Initial_Positions (J)),
+         Spatial.Vel_To_Vector (Initial_Velocities (I)),
+         Spatial.Vel_To_Vector (Initial_Velocities (J)),
+         Tick_Count);
+   end Lemma_No_Collision_Pair;
 
    type Bounce_Flags is record
       X : Boolean := False;
@@ -248,15 +282,17 @@ procedure Main with SPARK_Mode is
 begin
    Reset_Universe;
 
-   if not No_Future_Collision_Pair (U) then
+   if not No_Future_Collision_Pair (1, 2) then
       Print_Collision (0);
       return;
    end if;
 
    for Frame in 1 .. 5000 loop
-      pragma Loop_Invariant (Position_Invariant (U) and then No_Future_Collision_Pair (U));
+      pragma Loop_Invariant (Position_Invariant (U));
+      pragma Loop_Invariant (No_Future_Collision_Pair (1, 2));
 
-      --  TODO: call soundness lemma and assert collision freedom
+      Lemma_No_Collision_Pair (U, 1, 2);
+      pragma Assert (Squared_Dist (U, 1, 2) > Pair_Sep2 (1, 2));
 
       Disp.Capture (U);
       Univ.Tick (U);
@@ -286,7 +322,7 @@ begin
 
             Reset_Universe;
 
-            if not No_Future_Collision_Pair (U) then
+            if not No_Future_Collision_Pair (1, 2) then
                Print_Collision (Frame);
                return;
             end if;
