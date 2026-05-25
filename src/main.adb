@@ -196,6 +196,25 @@ procedure Main with SPARK_Mode is
          Tick_Count);
    end Lemma_No_Collision_Pair;
 
+   --  Ghost lemma: V*(T+1) = V*T + V, component-wise.
+   --  Isolates the nonlinear distributivity fact so provers handle it
+   --  as a small standalone goal rather than inside the large invariant.
+   procedure Lemma_Scale_Tick_Plus_One
+     (V : Vector.Vector; T : Big_Real)
+   with
+     Ghost,
+     Pre  => T >= To_Big_Real (0),
+     Post => Vector.Scale (V, T + To_Big_Real (1)) =
+             Vector.Add (Vector.Scale (V, T), V);
+
+   procedure Lemma_Scale_Tick_Plus_One
+     (V : Vector.Vector; T : Big_Real)
+   is
+   begin
+      pragma Assert (V.X * (T + To_Big_Real (1)) = V.X * T + V.X);
+      pragma Assert (V.Y * (T + To_Big_Real (1)) = V.Y * T + V.Y);
+   end Lemma_Scale_Tick_Plus_One;
+
    type Bounce_Flags is record
       X : Boolean := False;
       Y : Boolean := False;
@@ -297,6 +316,33 @@ begin
       Disp.Capture (U);
       Univ.Tick (U);
       Tick_Count := Tick_Count + To_Big_Real (1);
+
+      --  Guide the prover for invariant preservation in the no-bounce case.
+      --  Each Lemma call establishes Scale(V,T) = Add(Scale(V,T-1),V);
+      --  the following Assert then lets the prover verify the position
+      --  equation for each particle before tackling the full quantified invariant.
+      Lemma_Scale_Tick_Plus_One
+        (Spatial.Vel_To_Vector (Initial_Velocities (1)),
+         Tick_Count - To_Big_Real (1));
+      pragma Assert
+        (Univ.Get_Position (U, 1) =
+           Spatial.To_Position
+             (Vector.Add
+                (Spatial.To_Vector (Initial_Positions (1)),
+                 Vector.Scale
+                   (Spatial.Vel_To_Vector (Initial_Velocities (1)),
+                    Tick_Count))));
+      Lemma_Scale_Tick_Plus_One
+        (Spatial.Vel_To_Vector (Initial_Velocities (2)),
+         Tick_Count - To_Big_Real (1));
+      pragma Assert
+        (Univ.Get_Position (U, 2) =
+           Spatial.To_Position
+             (Vector.Add
+                (Spatial.To_Vector (Initial_Positions (2)),
+                 Vector.Scale
+                   (Spatial.Vel_To_Vector (Initial_Velocities (2)),
+                    Tick_Count))));
 
       declare
          Flags : constant Bounce_Array := Detect_Bounces (U);
